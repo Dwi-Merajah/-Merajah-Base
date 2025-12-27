@@ -1,7 +1,7 @@
 global.Func = require("./meta/function")
 global.owner = ["6285133663664"]
 
-global.Api = new(require('./meta/neoxrApi'))("https://api.neoxr.eu/api", "MerajahInit")
+global.Api = new(require('./meta/neoxrApi'))("https://api.neoxr.eu/api", "APIKEY")
 
 global.status = Object.freeze({
    fail: Func.Styles('Failed to process the request.'),
