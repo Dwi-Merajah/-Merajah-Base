@@ -9,18 +9,23 @@ module.exports = async function handler(ctx) {
     body,
     prefix,
     command,
+    commands,
     args,
     text,
+    isCmd,
     database,
     plugins
   } = ctx
-  let client = sock
+
+  const client = sock
+
   /* =================== BASIC NORMALIZATION =================== */
   if (m.sender && m.sender.endsWith('lid')) {
     m.sender = client.getJid(m.sender) || m.sender
   }
 
   require('./meta/database/schema')(m, sock)
+  require('./meta/logs')(client, m, prefix, isCmd)
 
   const groupSet = global.db.groups.find(v => v.jid === m.chat)
   const chats = global.db.chats.find(v => v.jid === m.chat)
@@ -66,9 +71,15 @@ module.exports = async function handler(ctx) {
   }
 
   /* =================== EXPIRED HANDLER =================== */
-  if (m.isGroup && groupSet && !groupSet.stay &&
-      groupSet.expired > 0 && Date.now() >= groupSet.expired) {
-    await client.reply(m.chat,
+  if (
+    m.isGroup &&
+    groupSet &&
+    !groupSet.stay &&
+    groupSet.expired > 0 &&
+    Date.now() >= groupSet.expired
+  ) {
+    await client.reply(
+      m.chat,
       '🚩 Bot time has expired and will leave this group.',
       null
     )
@@ -81,15 +92,16 @@ module.exports = async function handler(ctx) {
     users.premium = false
     users.expired = 0
     users.limit = env.limit
-    await client.reply(users.jid,
-      '🚩 Your premium package has expired.'
-    )
+    await client.reply(users.jid, '🚩 Your premium package has expired.')
   }
-  if (!setting.online) client.sendPresenceUpdate('unavailable', m.chat)
-    if (setting.online) {
-      client.sendPresenceUpdate('available', m.chat)
-      client.readMessages([m.key])
+
+  if (!setting.online) {
+    client.sendPresenceUpdate('unavailable', m.chat)
+  } else {
+    client.sendPresenceUpdate('available', m.chat)
+    client.readMessages([m.key])
   }
+
   /* =================== USER / CHAT UPDATE =================== */
   if (m.isGroup && groupSet) groupSet.activity = Date.now()
 
@@ -128,19 +140,21 @@ module.exports = async function handler(ctx) {
     groupSet.member[m.sender].lastseen = now
   }
 
-  /* =================== BUILD PLUGIN MAP (ONCE) =================== */
+  /* =================== BUILD PLUGIN MAP =================== */
   const enabledPlugins = []
   const commandMap = new Map()
 
-  for (const [name, plugin] of Object.entries(plugins)) {
-    const pname = plugin?.meta?.name
-    if (pname && setting.pluginDisable?.includes(pname)) continue
+  if (plugins && Object.keys(plugins).length) {
+    for (const [name, plugin] of Object.entries(plugins)) {
+      const pname = plugin?.meta?.name
+      if (pname && setting.pluginDisable?.includes(pname)) continue
 
-    enabledPlugins.push({ name, plugin })
+      enabledPlugins.push({ name, plugin })
 
-    if (Array.isArray(plugin?.meta?.command)) {
-      for (const cmd of plugin.meta.command) {
-        commandMap.set(cmd, { name, plugin })
+      if (Array.isArray(plugin?.meta?.command)) {
+        for (const cmd of plugin.meta.command) {
+          commandMap.set(cmd, { name, plugin })
+        }
       }
     }
   }
@@ -163,8 +177,19 @@ module.exports = async function handler(ctx) {
   }
 
   /* =================== COMMAND HANDLER =================== */
-  if (!command) return
 
+  // === LEGACY MODE (PLUGIN OFF) ===
+  if (!isCmd) {
+    if (!plugins || !Object.keys(plugins).length) {
+      // contoh legacy command
+      if (command === 'halo') {
+        return m.reply('halo juga')
+      }
+    }
+    return
+  }
+
+  // === PLUGIN COMMAND MODE ===
   const found = commandMap.get(command)
   if (!found) return
 
@@ -179,7 +204,7 @@ module.exports = async function handler(ctx) {
   if (metaCmd.private && m.isGroup) return m.reply(global.status.private)
   if (metaCmd.premium && !isPrem) return m.reply(global.status.premium)
 
-  /* === LIMIT (NO DELAY PRIVATE) === */
+  /* === LIMIT === */
   if (metaCmd.limit) {
     const cost = metaCmd.limit === true ? 1 : Number(metaCmd.limit)
     if (!users || users.limit < cost) {

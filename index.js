@@ -9,26 +9,21 @@ const handler = require('./handler')
 const { init } = require('./meta/plugins')
 const LocalDB = require('./meta/database/localdb')
 const Func = require('./meta/function')
-const extra = require('./meta/extra')
 require('./config')
+const chalk = require("chalk")
 
-/* ===================== MAIN ===================== */
 ;(async () => {
-  const pluginDir = path.join(process.cwd(), 'plugins')
-  const plugins = await init(pluginDir)
   const database = new LocalDB('database')
 
   const client = new Baileys({
     number: '6289504850078',
     session: 'sessions',
     browser: ['Linux', 'Chrome', '20.0.00'],
-    online: true
+    online: true,
+    plugins: 'plugins'
   })
-  
-  /* ============ CONNECT (ONCE) ============ */
-  client.once('connect', async ctx => {   
-    extra(ctx.sock)
-    
+
+  client.once('connect', async ctx => {    
     global.db = {
       users: [],
       chats: [],
@@ -63,8 +58,7 @@ require('./config')
     try {
     await handler({
         ...ctx,
-        database,
-        plugins
+        database
       })
     } catch (e) {
       console.error('[HANDLER ERROR]', e)
