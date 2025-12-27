@@ -145,6 +145,8 @@ Di dalam fungsi `execute(m, ctx)`, Anda dapat mengakses objek berikut secara ins
 * **Developer**: Dwi Merajah
 * **Base Framework**: `@merajah/base`
 * **Engine**: `@merajah/baileys`
+* **Group**: [GROUP] (https://chat.whatsapp.com/KcFAwyGTo8RBhPv03LvoHZ?mode=wwt)
+* **WhatsApp** [WA](https://wa.me/6285133663664)
 * **Lisensi**: [MIT](https://opensource.org/licenses/MIT) - Bebas digunakan dan dikembangkan.
 
 ---
