@@ -7,12 +7,10 @@ const mime = require('mime-types')
 const moment = require('moment-timezone')
 const chokidar = require('chokidar')
 const util = require('util')
+const NodeID3 = require('node-id3')
+const { fileTypeFromBuffer } = require('file-type')
 
 class Function {
-  /* =========================
-   * BASIC UTIL
-   * ========================= */
-
   greeting() {
     let time = moment.tz('Asia/Makassar').format('HH')
     let res = `Don't forget to sleep`
@@ -22,7 +20,54 @@ class Function {
     if (time >= 18) res = `Good Night`
     return res
   }
-
+  makeId = (length) => {
+      var result = ''
+      var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+      var charactersLength = characters.length
+      for (var i = 0; i < length; i++) {
+         result += characters.charAt(Math.floor(Math.random() * charactersLength))
+      }
+      return result
+  }
+  formatSize = (size) => {
+      function round(value, precision) {
+         var multiplier = Math.pow(10, precision || 0)
+         return Math.round(value * multiplier) / multiplier
+      }
+      var megaByte = 1024 * 1024
+      var gigaByte = 1024 * megaByte
+      var teraByte = 1024 * gigaByte
+      if (size < 1024) {
+         return size + ' B'
+      } else if (size < megaByte) {
+         return round(size / 1024, 1) + ' KB'
+      } else if (size < gigaByte) {
+         return round(size / megaByte, 1) + ' MB'
+      } else if (size < teraByte) {
+         return round(size / gigaByte, 1) + ' GB'
+      } else {
+         return round(size / teraByte, 1) + ' TB'
+      }
+      return ''
+   }
+  color = (text, color) => {
+      return chalk.keyword(color || 'green').bold(text)
+  }
+  mtype = (data) => {
+      function replaceAll(str) {
+         let res = str.replace(new RegExp('```', 'g'), '')
+            .replace(new RegExp('_', 'g'), '')
+            .replace(new RegExp(/[*]/, 'g'), '')
+         return res
+      }
+      let type = (typeof data.text !== 'object') ? replaceAll(data.text) : ''
+      return type
+   }
+   getSize = async (str) => {
+      if (!isNaN(str)) return this.formatSize(str)
+      let header = await (await axios.get(str)).headers
+      return this.formatSize(header['content-length'])
+   }
   uuid() {
     return Math.random().toString(36).substr(2, 9)
   }
@@ -58,13 +103,9 @@ toTime = function (ms = 0) {
   delay = async (ms) => {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
-  jsonFormat(obj) {
-    try {
-      let print = (obj && (obj.constructor.name == 'Object' || obj.constructor.name == 'Array')) ? require('util').format(JSON.stringify(obj, null, 2)) : require('util').format(obj)
-      return print
-    } catch {
+  
+  jsonFormat = (obj) => {
       return require('util').format(obj)
-    }
   }
   
   fetchJson = async (url, options = {}) => {
@@ -119,6 +160,65 @@ toTime = function (ms = 0) {
       find ? output.push(find.convert) : output.push(v)
     })
     return output.join('')
+  }
+  
+  getFile = async (input) => {
+    if (!input) throw new Error('getFile: input required')
+
+    const tempDir = path.join(process.cwd(), 'temp')
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true })
+    }
+
+    let buffer
+    let mimeType = ''
+    let ext = ''
+
+    if (Buffer.isBuffer(input)) {
+      buffer = input
+
+    } else if (typeof input === 'string' && /^https?:\/\//i.test(input)) {
+      const res = await axios.get(input, { responseType: 'arraybuffer' })
+      buffer = res.data
+      mimeType = res.headers['content-type'] || ''
+
+    } else if (typeof input === 'string' && fs.existsSync(input)) {
+      buffer = fs.readFileSync(input)
+      mimeType = mime.lookup(input) || ''
+
+    } else {
+      throw new Error('getFile: invalid input type')
+    }
+
+    const detected = await fileTypeFromBuffer(buffer)
+    if (detected) {
+      mimeType = detected.mime
+      ext = detected.ext
+    }
+
+    if (/image/i.test(mimeType)) {
+      ext = ext || 'jpg'
+    } else if (/audio/i.test(mimeType)) {
+      ext = 'mp3'
+    } else if (/video/i.test(mimeType)) {
+      ext = 'mp4'
+    } else {
+      ext = ext || 'bin'
+    }
+
+    const filename = `${Date.now()}.${ext}`
+    const filepath = path.join(tempDir, filename)
+
+    fs.writeFileSync(filepath, buffer)
+
+    return {
+      file: filepath,
+      filename,
+      buffer,
+      mime: mimeType,
+      ext,
+      size: buffer.length
+    }
   }
 }
 
